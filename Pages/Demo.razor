@@ -1,0 +1,350 @@
+@page "/"
+@page "/demo"
+@inject OpenAIService OpenAIService
+@inject IJSRuntime JSRuntime
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-8">
+            <h2>🤖 Techorama OpenAI Demo</h2>
+            
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5>Choose Your Demo</h5>
+                </div>
+                <div class="card-body">
+                    <div class="btn-group mb-3" role="group">
+                        <button class="btn @(selectedDemo == "openai" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                                @onclick="@(() => SelectDemo("openai"))">
+                            OpenAI API
+                        </button>
+                        <button class="btn @(selectedDemo == "azure" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                                @onclick="@(() => SelectDemo("azure"))">
+                            Azure OpenAI
+                        </button>
+                        <button class="btn @(selectedDemo == "azure-entraid" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                                @onclick="@(() => SelectDemo("azure-entraid"))">
+                            Azure OpenAI + Entra ID
+                        </button>
+                        <button class="btn @(selectedDemo == "mcp" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                                @onclick="@(() => SelectDemo("mcp"))">
+                            MCP Tools + Stripe
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5>💬 Chat Interface</h5>
+                    <span class="badge @GetStatusBadgeClass()">@currentStatus</span>
+                </div>
+                <div class="card-body">
+                    <div class="chat-container mb-3" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px;" @ref="chatContainer">
+                        @if (chatHistory.Count == 0)
+                        {
+                            <div class="text-center text-muted">
+                                <p>👋 Welcome to the Techorama OpenAI Demo!</p>
+                                <p>Select a demo type above and start chatting.</p>
+                            </div>
+                        }
+                        @foreach (var message in chatHistory)
+                        {
+                            <div class="mb-3">
+                                <div class="d-flex @(message.IsUser ? "justify-content-end" : "justify-content-start")">
+                                    <div class="@(message.IsUser ? "message-user" : "message-ai")">
+                                        <strong class="@(message.IsUser ? "text-white" : "text-success")">
+                                            @(message.IsUser ? "You" : GetBotName()):
+                                        </strong>
+                                        <div class="mt-1">
+                                            @message.Content
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(message.Metadata))
+                                        {
+                                            <small class="@(message.IsUser ? "text-light" : "text-muted") d-block mt-1">
+                                                @message.Metadata
+                                            </small>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        @if (isLoading)
+                        {
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <div class="mt-2">@GetBotName() is thinking...</div>
+                            </div>
+                        }
+                    </div>
+                    
+                    <div class="input-group">
+                        <input @bind="currentMessage" @onkeypress="HandleKeyPress" 
+                               class="form-control" placeholder="Type your message..." disabled="@isLoading" 
+                               @ref="messageInput" />
+                        <button class="btn btn-primary" @onclick="SendMessage" disabled="@(isLoading || string.IsNullOrWhiteSpace(currentMessage))">
+                            @if (isLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                            }
+                            else
+                            {
+                                <span>Send</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card demo-stats">
+                <div class="card-header">
+                    <h6>📊 Demo Stats</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <strong>Current Model:</strong><br />
+                        <span class="badge bg-info">@GetCurrentModel()</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Authentication:</strong><br />
+                        <span class="badge bg-secondary">@GetAuthType()</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Messages Sent:</strong> @messageCount
+                    </div>
+                    <div class="mb-2">
+                        <strong>Avg Response Time:</strong> @($"{avgResponseTime:F1}s")
+                    </div>
+                    @if (responseTimes.Count > 0)
+                    {
+                        <div class="mb-2">
+                            <strong>Last Response:</strong> @($"{responseTimes.LastOrDefault():F1}s")
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6>🛠️ Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-sm btn-outline-secondary mb-2 w-100" @onclick="@(() => AddSampleMessage("Explain quantum computing in simple terms"))">
+                        Sample: Explain quantum computing
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary mb-2 w-100" @onclick="@(() => AddSampleMessage("Write a haiku about programming"))">
+                        Sample: Write a haiku
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary mb-2 w-100" @onclick="@(() => AddSampleMessage("What are the benefits of using Azure OpenAI over regular OpenAI?"))">
+                        Sample: Azure vs OpenAI
+                    </button>
+                    @if (selectedDemo == "mcp")
+                    {
+                        <hr />
+                        <button class="btn btn-sm btn-outline-warning mb-2 w-100" @onclick="@(() => AddSampleMessage("List my Stripe products"))">
+                            Stripe: List products
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning mb-2 w-100" @onclick="@(() => AddSampleMessage("Show me my top 5 customers by revenue"))">
+                            Stripe: Top customers
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning mb-2 w-100" @onclick="@(() => AddSampleMessage("Create a summary of my recent transactions"))">
+                            Stripe: Transaction summary
+                        </button>
+                    }
+                    <hr />
+                    <button class="btn btn-sm btn-danger w-100" @onclick="ClearChat">
+                        Clear Chat
+                    </button>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6>ℹ️ About This Demo</h6>
+                </div>
+                <div class="card-body">
+                    <small class="text-muted">
+                        This demo showcases different ways to integrate with OpenAI:
+                        <ul class="mt-2 mb-0">
+                            <li><strong>OpenAI API:</strong> Direct API key authentication</li>
+                            <li><strong>Azure OpenAI:</strong> Enterprise-grade with API keys</li>
+                            <li><strong>Azure + Entra ID:</strong> Zero-trust authentication</li>
+                            <li><strong>MCP Tools:</strong> AI with business system integration</li>
+                        </ul>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string selectedDemo = "openai";
+    private string currentMessage = "";
+    private bool isLoading = false;
+    private string currentStatus = "Ready";
+    private int messageCount = 0;
+    private double avgResponseTime = 0;
+    private List<ChatMessage> chatHistory = new();
+    private List<double> responseTimes = new();
+    private ElementReference chatContainer;
+    private ElementReference messageInput;
+
+    public class ChatMessage
+    {
+        public string Content { get; set; } = "";
+        public bool IsUser { get; set; }
+        public string Metadata { get; set; } = "";
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await messageInput.FocusAsync();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(currentMessage) || isLoading) return;
+
+        var userMessage = currentMessage;
+        currentMessage = "";
+
+        // Add user message
+        chatHistory.Add(new ChatMessage { Content = userMessage, IsUser = true });
+        messageCount++;
+
+        isLoading = true;
+        currentStatus = "Processing...";
+        StateHasChanged();
+
+        try
+        {
+            var startTime = DateTime.Now;
+            string response = selectedDemo switch
+            {
+                "openai" => await OpenAIService.UseOpenAiResponsesAsync(userMessage),
+                "azure" => await OpenAIService.UseAzureOpenAiResponsesAsync(userMessage, false),
+                "azure-entraid" => await OpenAIService.UseAzureOpenAiResponsesAsync(userMessage, true),
+                "mcp" => await OpenAIService.UseOpenAiResponsesWithMcpAsync(userMessage),
+                _ => "Unknown demo type selected"
+            };
+
+            var responseTime = (DateTime.Now - startTime).TotalSeconds;
+            responseTimes.Add(responseTime);
+            avgResponseTime = responseTimes.Average();
+
+            // Add AI response
+            chatHistory.Add(new ChatMessage 
+            { 
+                Content = response, 
+                IsUser = false,
+                Metadata = $"Response time: {responseTime:F1}s | Model: {GetCurrentModel()}"
+            });
+
+            currentStatus = "Ready";
+        }
+        catch (Exception ex)
+        {
+            chatHistory.Add(new ChatMessage 
+            { 
+                Content = $"❌ Error: {ex.Message}", 
+                IsUser = false 
+            });
+            currentStatus = "Error";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+            await ScrollToBottom();
+            await messageInput.FocusAsync();
+        }
+    }
+
+    private async Task ScrollToBottom() => await JSRuntime.InvokeVoidAsync("scrollToBottom", chatContainer);
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !isLoading)
+        {
+            await SendMessage();
+        }
+    }
+
+    private void SelectDemo(string demo)
+    {
+        selectedDemo = demo;
+        // Clear chat interface when switching demos
+        chatHistory.Clear();
+        messageCount = 0;
+        responseTimes.Clear();
+        avgResponseTime = 0;
+        currentStatus = $"Switched to {GetDemoDisplayName(demo)}";
+    }
+
+    private void AddSampleMessage(string message) => currentMessage = message;
+
+    private void ClearChat()
+    {
+        chatHistory.Clear();
+        messageCount = 0;
+        responseTimes.Clear();
+        avgResponseTime = 0;
+        currentStatus = "Chat cleared";
+    }
+
+    private string GetBotName() => selectedDemo switch
+    {
+        "openai" => "OpenAI GPT-4",
+        "azure" => "Azure OpenAI",
+        "azure-entraid" => "Azure OpenAI (Entra ID)",
+        "mcp" => "AI + Stripe Tools",
+        _ => "AI Assistant"
+    };
+
+    private string GetDemoDisplayName(string demo) => demo switch
+    {
+        "openai" => "OpenAI API",
+        "azure" => "Azure OpenAI",
+        "azure-entraid" => "Azure OpenAI + Entra ID",
+        "mcp" => "MCP Tools + Stripe",
+        _ => "Unknown"
+    };
+
+    private string GetCurrentModel() => selectedDemo switch
+    {
+        "openai" => "gpt-4",
+        "azure" => "codex-mini",
+        "azure-entraid" => "codex-mini",
+        "mcp" => "gpt-4 + MCP",
+        _ => "Unknown"
+    };
+
+    private string GetAuthType() => selectedDemo switch
+    {
+        "openai" => "API Key",
+        "azure" => "Azure API Key",
+        "azure-entraid" => "Entra ID",
+        "mcp" => "API Key + OAuth",
+        _ => "Unknown"
+    };
+
+    private string GetStatusBadgeClass() => currentStatus switch
+    {
+        "Ready" => "bg-success",
+        var s when s.Contains("Processing") => "bg-warning text-dark",
+        var s when s.Contains("Error") => "bg-danger",
+        var s when s.Contains("Switched") => "bg-info text-dark",
+        var s when s.Contains("cleared") => "bg-secondary",
+        _ => "bg-secondary"
+    };
+}

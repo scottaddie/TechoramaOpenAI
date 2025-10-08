@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "TechoramaOpenAI": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "AZURE_TOKEN_CREDENTIALS": "dev"
+      },
+      "applicationUrl": "https://localhost:50974;http://localhost:50975"
+    }
+  }
+}
