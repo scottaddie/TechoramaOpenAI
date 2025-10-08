@@ -1,8 +1,6 @@
-namespace TechoramaOpenAI.Models;
+﻿namespace TechoramaOpenAI.Models;
 
 public class OpenAISettings
 {
-    public required string DeploymentName { get; set; } = string.Empty;
-    public required string Endpoint { get; set; } = string.Empty;
-    public required string Scope { get; set; } = string.Empty;
+    public required string ModelName { get; set; } = string.Empty;
 }
