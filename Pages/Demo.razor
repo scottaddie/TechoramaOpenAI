@@ -19,7 +19,7 @@
                     <div class="btn-group mb-3" role="group">
                         <button class="btn @(selectedDemo == "openai" ? "btn-primary" : "btn-outline-primary") btn-demo" 
                                 @onclick="@(() => SelectDemo("openai"))">
-                            OpenAI API
+                            OpenAI
                         </button>
                         <button class="btn @(selectedDemo == "azure" ? "btn-primary" : "btn-outline-primary") btn-demo" 
                                 @onclick="@(() => SelectDemo("azure"))">
@@ -31,7 +31,7 @@
                         </button>
                         <button class="btn @(selectedDemo == "mcp" ? "btn-primary" : "btn-outline-primary") btn-demo" 
                                 @onclick="@(() => SelectDemo("mcp"))">
-                            MCP Tools + Stripe
+                            OpenAI + MCP Tools
                         </button>
                     </div>
                 </div>
@@ -309,7 +309,7 @@
         "openai" => "OpenAI GPT-4",
         "azure" => "Azure OpenAI",
         "azure-entraid" => "Azure OpenAI (Entra ID)",
-        "mcp" => "AI + Stripe Tools",
+        "mcp" => "OpenAI + Stripe Tools",
         _ => "AI Assistant"
     };
 

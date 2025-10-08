@@ -1,4 +1,4 @@
-﻿using Azure.Identity;
+﻿using Azure.Core;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.Extensions.Options;
 using OpenAI;
@@ -9,7 +9,7 @@ using TechoramaOpenAI.Models;
 
 namespace TechoramaOpenAI.Services;
 
-public class AzureOpenAIService(SecretClient secretClient, IOptions<AzureOpenAISettings> options)
+public class AzureOpenAIService(SecretClient secretClient, IOptions<AzureOpenAISettings> options, TokenCredential credential)
 {
     private readonly AzureOpenAISettings _settings = options.Value;
 
@@ -20,7 +20,6 @@ public class AzureOpenAIService(SecretClient secretClient, IOptions<AzureOpenAIS
         {
             OpenAIClient openAIClient = await GetAzureOpenAIClient(useEntraId);
             OpenAIResponseClient responseClient = openAIClient.GetOpenAIResponseClient(_settings.DeploymentName);
-            //OpenAIResponseClient responseClient = openAIClient.GetOpenAIResponseClient("gpt-5-mini");
             OpenAIResponse response = await responseClient.CreateResponseAsync(prompt);
 
             return response.GetOutputText();
@@ -42,8 +41,6 @@ public class AzureOpenAIService(SecretClient secretClient, IOptions<AzureOpenAIS
 
         if (useEntraId)
         {
-            //TODO: find a way to pass this cred in from Program.cs so it's reused and uses token cache
-            DefaultAzureCredential credential = new(DefaultAzureCredential.DefaultEnvironmentVariableName);
             BearerTokenPolicy tokenPolicy = new(credential, _settings.Scope);
             client = new(tokenPolicy, clientOptions);
         }
