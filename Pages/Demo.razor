@@ -1,9 +1,13 @@
 @page "/"
 @page "/demo"
 @inject AzureOpenAIService AzureOpenAIService
+@inject IOptions<AzureOpenAISettings> AzureOpenAIOptions
 @inject OpenAIService OpenAIService
+@inject IOptions<OpenAISettings> OpenAIOptions
 @inject IJSRuntime JSRuntime
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.Extensions.Options
+@using TechoramaOpenAI.Models
 @using TechoramaOpenAI.Services
 
 <div class="container-fluid mt-4">
@@ -173,10 +177,10 @@
                     <small class="text-muted">
                         This demo showcases different ways to integrate with OpenAI:
                         <ul class="mt-2 mb-0">
-                            <li><strong>OpenAI API:</strong> Direct API key authentication</li>
+                            <li><strong>OpenAI:</strong> Direct API key authentication</li>
                             <li><strong>Azure OpenAI:</strong> Enterprise-grade with API keys</li>
-                            <li><strong>Azure + Entra ID:</strong> Zero-trust authentication</li>
-                            <li><strong>MCP Tools:</strong> AI with business system integration</li>
+                            <li><strong>Azure OpenAI + Entra ID:</strong> Zero-trust authentication</li>
+                            <li><strong>OpenAI + MCP Tools:</strong> AI with business system integration</li>
                         </ul>
                     </small>
                 </div>
@@ -306,10 +310,10 @@
 
     private string GetBotName() => selectedDemo switch
     {
-        "openai" => "OpenAI GPT-4",
+        "openai" => "OpenAI",
         "azure" => "Azure OpenAI",
         "azure-entraid" => "Azure OpenAI (Entra ID)",
-        "mcp" => "OpenAI + Stripe Tools",
+        "mcp" => "OpenAI + Stripe MCP Tools",
         _ => "AI Assistant"
     };
 
@@ -318,16 +322,16 @@
         "openai" => "OpenAI API",
         "azure" => "Azure OpenAI",
         "azure-entraid" => "Azure OpenAI + Entra ID",
-        "mcp" => "MCP Tools + Stripe",
+        "mcp" => "OpenAI + Stripe MCP Tools",
         _ => "Unknown"
     };
 
     private string GetCurrentModel() => selectedDemo switch
     {
-        "openai" => "gpt-4",
-        "azure" => "codex-mini",
-        "azure-entraid" => "codex-mini",
-        "mcp" => "gpt-4 + MCP",
+        "openai" => OpenAIOptions.Value.ModelName,
+        "azure" => AzureOpenAIOptions.Value.DeploymentName,
+        "azure-entraid" => AzureOpenAIOptions.Value.DeploymentName,
+        "mcp" => $"{OpenAIOptions.Value.ModelName} + MCP",
         _ => "Unknown"
     };
 
