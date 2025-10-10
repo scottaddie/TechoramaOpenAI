@@ -49,8 +49,33 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
                 {
                     new McpTool(serverLabel: "stripe", serverUri: new Uri("https://mcp.stripe.com"))
                     {
+                        ServerDescription = "MCP server docs at https://docs.stripe.com/mcp",
                         AuthorizationToken = stripeApiKey,
                         ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval),
+                        AllowedTools = new McpToolFilter
+                        {
+                            // See available tools at https://docs.stripe.com/mcp#tools
+                            ToolNames =
+                            {
+                                "list_products",
+                                "list_prices",
+                                "create_payment_link",
+                            },
+                            //IsReadOnly = false,
+                        },
+                    },
+                    new McpTool(serverLabel: "currency-conversion", serverUri: new Uri("https://currency-mcp.wesbos.com/mcp"))
+                    {
+                        ServerDescription = "MCP server docs at https://mcpservers.org/servers/wesbos/currency-converesion-mcp",
+                        ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval),
+                        AllowedTools = new McpToolFilter
+                        {
+                            // See available tools at https://github.com/wesbos/currency-conversion-mcp?tab=readme-ov-file#available-tools
+                            ToolNames =
+                            {
+                                "convert_currency",
+                            }
+                        },
                     },
                 }
             };
