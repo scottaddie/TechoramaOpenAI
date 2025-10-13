@@ -35,7 +35,7 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
     {
         string? openAiApiKey = await GetOpenAIApiKey();
         if (openAiApiKey == null) return "Error: OpenAI API key not configured";
-        
+
         string? stripeApiKey = await GetStripeApiKey();
         if (stripeApiKey == null) return "Error: Stripe API key not configured";
 
@@ -61,7 +61,8 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
                                 "list_prices",
                                 "create_payment_link",
                             },
-                            //IsReadOnly = false,
+                            // When true, only allow read-only tools (those annotated with `readOnlyHint`)
+                            //IsReadOnly = true,
                         },
                     },
                     new McpTool(serverLabel: "currency-conversion", serverUri: new Uri("https://currency-mcp.wesbos.com/mcp"))
@@ -82,6 +83,26 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
 
             OpenAIResponse response = await client.CreateResponseAsync(prompt, options);
             string output = response.GetOutputText();
+
+            foreach (ResponseItem responseItem in response.OutputItems)
+            {
+                if (responseItem is McpToolDefinitionListItem listItem)
+                {
+                    if (!_settings.McpToolsListed.ContainsKey(listItem.ServerLabel))
+                    {
+                        _settings.McpToolsListed[listItem.ServerLabel] = new List<string>();
+                    }
+
+                    foreach (McpToolDefinition tool in listItem.ToolDefinitions)
+                    {
+                        _settings.McpToolsListed[listItem.ServerLabel].Add(tool.Name);
+                    }
+                }
+                else if (responseItem is McpToolCallItem callItem)
+                {
+                    _settings.McpToolsUsed.Add($"{callItem.ServerLabel}'s {callItem.ToolName}");
+                }
+            }
 
             return string.IsNullOrEmpty(output) ? "Response was empty or null" : output;
         }

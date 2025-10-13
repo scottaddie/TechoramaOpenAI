@@ -14,26 +14,26 @@
     <div class="row">
         <div class="col-md-8">
             <h2>🤖 Techorama OpenAI Demo</h2>
-            
+
             <div class="card mb-3">
                 <div class="card-header">
                     <h5>Choose Your Demo</h5>
                 </div>
                 <div class="card-body">
                     <div class="btn-group mb-3" role="group">
-                        <button class="btn @(selectedDemo == "openai" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                        <button class="btn @(selectedDemo == "openai" ? "btn-primary" : "btn-outline-primary") btn-demo"
                                 @onclick="@(() => SelectDemo("openai"))">
                             OpenAI
                         </button>
-                        <button class="btn @(selectedDemo == "azure" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                        <button class="btn @(selectedDemo == "azure" ? "btn-primary" : "btn-outline-primary") btn-demo"
                                 @onclick="@(() => SelectDemo("azure"))">
                             Azure OpenAI
                         </button>
-                        <button class="btn @(selectedDemo == "azure-entraid" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                        <button class="btn @(selectedDemo == "azure-entraid" ? "btn-primary" : "btn-outline-primary") btn-demo"
                                 @onclick="@(() => SelectDemo("azure-entraid"))">
                             Azure OpenAI + Entra ID
                         </button>
-                        <button class="btn @(selectedDemo == "mcp" ? "btn-primary" : "btn-outline-primary") btn-demo" 
+                        <button class="btn @(selectedDemo == "mcp" ? "btn-primary" : "btn-outline-primary") btn-demo"
                                 @onclick="@(() => SelectDemo("mcp"))">
                             OpenAI + MCP Tools
                         </button>
@@ -86,10 +86,10 @@
                             </div>
                         }
                     </div>
-                    
+
                     <div class="input-group">
-                        <input @bind="currentMessage" @onkeypress="HandleKeyPress" 
-                               class="form-control" placeholder="Type your message..." disabled="@isLoading" 
+                        <input @bind="currentMessage" @onkeypress="HandleKeyPress"
+                               class="form-control" placeholder="Type your message..." disabled="@isLoading"
                                @ref="messageInput" />
                         <button class="btn btn-primary" @onclick="SendMessage" disabled="@(isLoading || string.IsNullOrWhiteSpace(currentMessage))">
                             @if (isLoading)
@@ -105,7 +105,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-4">
             <div class="card demo-stats">
                 <div class="card-header">
@@ -116,6 +116,24 @@
                         <strong>Current Model:</strong><br />
                         <span class="badge bg-info">@GetCurrentModel()</span>
                     </div>
+                    @if (selectedDemo == "mcp")
+                    {
+                        <div class="mb-2">
+                            <strong>MCP Tools Listed:</strong><br />
+                            <ul>
+                                @foreach (KeyValuePair<string, List<string>> tool in OpenAIOptions.Value.McpToolsListed)
+                                {
+                                    <li><span class="badge bg-info">@tool.Key</span></li>
+                                    <ul>
+                                        @foreach (string toolName in tool.Value)
+                                        {
+                                            <li><i class="bi bi-wrench"></i> @toolName</li>
+                                        }
+                                    </ul>
+                                }
+                            </ul>
+                        </div>
+                    }
                     <div class="mb-2">
                         <strong>Authentication:</strong><br />
                         <span class="badge bg-secondary">@GetAuthType()</span>
@@ -228,6 +246,9 @@
         chatHistory.Add(new ChatMessage { Content = userMessage, IsUser = true });
         messageCount++;
 
+        // Reset MCP tools used for the new message
+        OpenAIOptions.Value.McpToolsUsed.Clear();
+
         isLoading = true;
         currentStatus = "Processing...";
         StateHasChanged();
@@ -249,21 +270,21 @@
             avgResponseTime = responseTimes.Average();
 
             // Add AI response
-            chatHistory.Add(new ChatMessage 
-            { 
-                Content = response, 
+            chatHistory.Add(new ChatMessage
+            {
+                Content = response,
                 IsUser = false,
-                Metadata = $"Response time: {responseTime:F1}s | Model: {GetCurrentModel()}"
+                Metadata = $"Response time: {responseTime:F1}s | Model: {GetCurrentModel()} | MCP tools: {GetMcpToolsUsed()}"
             });
 
             currentStatus = "Ready";
         }
         catch (Exception ex)
         {
-            chatHistory.Add(new ChatMessage 
-            { 
-                Content = $"❌ Error: {ex.Message}", 
-                IsUser = false 
+            chatHistory.Add(new ChatMessage
+            {
+                Content = $"❌ Error: {ex.Message}",
+                IsUser = false
             });
             currentStatus = "Error";
         }
@@ -313,7 +334,7 @@
         "openai" => "OpenAI",
         "azure" => "Azure OpenAI",
         "azure-entraid" => "Azure OpenAI (Entra ID)",
-        "mcp" => "OpenAI + Stripe MCP Tools",
+        "mcp" => "OpenAI + MCP Tools",
         _ => "AI Assistant"
     };
 
@@ -322,7 +343,7 @@
         "openai" => "OpenAI API",
         "azure" => "Azure OpenAI",
         "azure-entraid" => "Azure OpenAI + Entra ID",
-        "mcp" => "OpenAI + Stripe MCP Tools",
+        "mcp" => "OpenAI + MCP Tools",
         _ => "Unknown"
     };
 
@@ -331,9 +352,13 @@
         "openai" => OpenAIOptions.Value.ModelName,
         "azure" => AzureOpenAIOptions.Value.DeploymentName,
         "azure-entraid" => AzureOpenAIOptions.Value.DeploymentName,
-        "mcp" => $"{OpenAIOptions.Value.ModelName} + MCP",
+        "mcp" => OpenAIOptions.Value.ModelName,
         _ => "Unknown"
     };
+
+    private string GetMcpToolsUsed() => selectedDemo == "mcp" && OpenAIOptions.Value.McpToolsUsed != null
+        ? string.Join(", ", OpenAIOptions.Value.McpToolsUsed)
+        : "None";
 
     private string GetAuthType() => selectedDemo switch
     {
