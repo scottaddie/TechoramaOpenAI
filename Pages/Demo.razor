@@ -121,13 +121,13 @@
                         <div class="mb-2">
                             <strong>MCP Tools Listed:</strong><br />
                             <ul>
-                                @foreach (KeyValuePair<string, List<string>> tool in OpenAIOptions.Value.McpToolsListed)
+                                @foreach (KeyValuePair<string, List<McpToolInfo>> tool in OpenAIOptions.Value.McpToolsListed)
                                 {
                                     <li><span class="badge bg-info">@tool.Key</span></li>
                                     <ul>
-                                        @foreach (string toolName in tool.Value)
+                                        @foreach (McpToolInfo toolInfo in tool.Value)
                                         {
-                                            <li><i class="bi bi-wrench"></i> @toolName</li>
+                                            <li><i class="bi bi-wrench"></i> @toolInfo.Name (@toolInfo.Annotations)</li>
                                         }
                                     </ul>
                                 }

@@ -90,12 +90,16 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
                 {
                     if (!_settings.McpToolsListed.ContainsKey(listItem.ServerLabel))
                     {
-                        _settings.McpToolsListed[listItem.ServerLabel] = new List<string>();
+                        _settings.McpToolsListed[listItem.ServerLabel] = new List<McpToolInfo>();
                     }
 
                     foreach (McpToolDefinition tool in listItem.ToolDefinitions)
                     {
-                        _settings.McpToolsListed[listItem.ServerLabel].Add(tool.Name);
+                        _settings.McpToolsListed[listItem.ServerLabel].Add(new McpToolInfo
+                        {
+                            Name = tool.Name,
+                            Annotations = tool.Annotations.ToString(),
+                        });
                     }
                 }
                 else if (responseItem is McpToolCallItem callItem)
