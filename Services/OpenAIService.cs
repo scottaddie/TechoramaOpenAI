@@ -75,7 +75,7 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
                             ToolNames =
                             {
                                 "convert_currency",
-                            }
+                            },
                         },
                     },
                 }
@@ -104,7 +104,7 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
                 }
                 else if (responseItem is McpToolCallItem callItem)
                 {
-                    _settings.McpToolsUsed.Add($"{callItem.ServerLabel}'s {callItem.ToolName}");
+                    _settings.McpToolsUsed.Add($"{callItem.ServerLabel}.{callItem.ToolName}");
                 }
             }
 

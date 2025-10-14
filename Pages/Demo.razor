@@ -274,7 +274,9 @@
             {
                 Content = response,
                 IsUser = false,
-                Metadata = $"Response time: {responseTime:F1}s | Model: {GetCurrentModel()} | MCP tools: {GetMcpToolsUsed()}"
+                Metadata = selectedDemo == "mcp" && OpenAIOptions.Value.McpToolsUsed.Count > 0
+                    ? $"Response time: {responseTime:F1}s | Model: {GetCurrentModel()} | MCP tools: {GetMcpToolsUsed()}"
+                    : $"Response time: {responseTime:F1}s | Model: {GetCurrentModel()}"
             });
 
             currentStatus = "Ready";
