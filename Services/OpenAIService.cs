@@ -1,4 +1,5 @@
 using Azure.Security.KeyVault.Secrets;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Responses;
@@ -7,9 +8,14 @@ using TechoramaOpenAI.Models;
 
 namespace TechoramaOpenAI.Services;
 
-public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> options, ToastService toastService)
+public class OpenAIService(
+    SecretClient secretClient,
+    IOptions<OpenAISettings> options,
+    IMemoryCache cache,
+    ToastService toastService)
 {
     private readonly OpenAISettings _settings = options.Value;
+    private readonly IMemoryCache _cache = cache;
     private readonly ToastService _toastService = toastService;
 
 #pragma warning disable OPENAI001
@@ -164,13 +170,25 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
 
     private async Task<string?> GetOpenAIApiKey()
     {
-        KeyVaultSecret secret = await secretClient.GetSecretAsync("OPENAI-API-KEY");
-        return secret?.Value;
+        const string OpenAIKeyCacheKey = "OPENAI-API-KEY";
+
+        return await _cache.GetOrCreateAsync(OpenAIKeyCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            KeyVaultSecret secret = await secretClient.GetSecretAsync(OpenAIKeyCacheKey);
+            return secret?.Value;
+        });
     }
 
     private async Task<string?> GetStripeApiKey()
     {
-        KeyVaultSecret secret = await secretClient.GetSecretAsync("STRIPE-OAUTH-ACCESS-TOKEN");
-        return secret?.Value;
+        const string StripeKeyCacheKey = "STRIPE-OAUTH-ACCESS-TOKEN";
+
+        return await _cache.GetOrCreateAsync(StripeKeyCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            KeyVaultSecret secret = await secretClient.GetSecretAsync(StripeKeyCacheKey);
+            return secret?.Value;
+        });
     }
 }

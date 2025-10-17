@@ -1,5 +1,6 @@
 ﻿using Azure.Core;
 using Azure.Security.KeyVault.Secrets;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Responses;
@@ -9,9 +10,14 @@ using TechoramaOpenAI.Models;
 
 namespace TechoramaOpenAI.Services;
 
-public class AzureOpenAIService(SecretClient secretClient, IOptions<AzureOpenAISettings> options, TokenCredential credential)
+public class AzureOpenAIService(
+    SecretClient secretClient,
+    IOptions<AzureOpenAISettings> options,
+    IMemoryCache cache,
+    TokenCredential credential)
 {
     private readonly AzureOpenAISettings _settings = options.Value;
+    private readonly IMemoryCache _cache = cache;
 
 #pragma warning disable OPENAI001
     public async Task<string> UseResponsesAsync(string prompt, bool useEntraId = false)
@@ -56,7 +62,13 @@ public class AzureOpenAIService(SecretClient secretClient, IOptions<AzureOpenAIS
 
     private async Task<string?> GetAzureOpenAIApiKey()
     {
-        KeyVaultSecret secret = await secretClient.GetSecretAsync("AZURE-OPENAI-API-KEY");
-        return secret?.Value;
+        const string AzureOpenAIKeyCacheKey = "AZURE-OPENAI-API-KEY";
+
+        return await _cache.GetOrCreateAsync(AzureOpenAIKeyCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            KeyVaultSecret secret = await secretClient.GetSecretAsync(AzureOpenAIKeyCacheKey);
+            return secret?.Value;
+        });
     }
 }
