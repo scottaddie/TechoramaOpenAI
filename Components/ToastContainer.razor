@@ -1,0 +1,73 @@
+﻿@using TechoramaOpenAI.Services
+@inject ToastService ToastService
+@implements IDisposable
+
+@if (showToast)
+{
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-warning">
+                <strong class="me-auto">@toastTitle</strong>
+                <button type="button" class="btn-close" @onclick="HandleDeny"></button>
+            </div>
+            <div class="toast-body">
+                @toastMessage
+                <div class="mt-2 pt-2 border-top">
+                    <button type="button" class="btn btn-success btn-sm me-2" @onclick="HandleApprove">
+                        ✓ Approve
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm" @onclick="HandleDeny">
+                        ✗ Deny
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showToast = false;
+    private string toastTitle = "";
+    private string toastMessage = "";
+    private TaskCompletionSource<bool>? approvalTaskSource;
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnShowApprovalToast += ShowApprovalToast;
+    }
+
+    private async Task<bool> ShowApprovalToast(string title, string message)
+    {
+        TaskCompletionSource<bool> tcs = new TaskCompletionSource<bool>();
+        
+        await InvokeAsync(() =>
+        {
+            toastTitle = title;
+            toastMessage = message;
+            showToast = true;
+            approvalTaskSource = tcs;
+            StateHasChanged();
+        });
+        
+        return await tcs.Task;
+    }
+
+    private void HandleApprove()
+    {
+        showToast = false;
+        approvalTaskSource?.SetResult(true);
+        StateHasChanged();
+    }
+
+    private void HandleDeny()
+    {
+        showToast = false;
+        approvalTaskSource?.SetResult(false);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        ToastService.OnShowApprovalToast -= ShowApprovalToast;
+    }
+}

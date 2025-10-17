@@ -120,16 +120,21 @@
                     {
                         <div class="mb-2">
                             <strong>MCP Tools Listed:</strong><br />
-                            <ul>
+                            <ul class="list-group">
                                 @foreach (KeyValuePair<string, List<McpToolInfo>> tool in OpenAIOptions.Value.McpToolsListed)
                                 {
-                                    <li><span class="badge bg-info">@tool.Key</span></li>
-                                    <ul>
-                                        @foreach (McpToolInfo toolInfo in tool.Value)
-                                        {
-                                            <li><i class="bi bi-wrench"></i> @toolInfo.Name (@toolInfo.Annotations)</li>
-                                        }
-                                    </ul>
+                                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                                        <div class="ms-2 me-auto">
+                                            <div class="fw-bold">@tool.Key</div>
+                                            <ul>
+                                            @foreach (McpToolInfo toolInfo in tool.Value)
+                                            {
+                                                <li><i class="bi bi-wrench"></i> @toolInfo.Name (@toolInfo.Annotations)</li>
+                                            }
+                                            </ul>
+                                        </div>
+                                        <span class="badge bg-secondary rounded-pill">@tool.Value.Count</span>
+                                    </li>
                                 }
                             </ul>
                         </div>

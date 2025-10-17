@@ -7,9 +7,10 @@ using TechoramaOpenAI.Models;
 
 namespace TechoramaOpenAI.Services;
 
-public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> options)
+public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> options, ToastService toastService)
 {
     private readonly OpenAISettings _settings = options.Value;
+    private readonly ToastService _toastService = toastService;
 
 #pragma warning disable OPENAI001
     public async Task<string> UseResponsesAsync(string prompt)
@@ -68,7 +69,7 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
                     new McpTool(serverLabel: "currency-conversion", serverUri: new Uri("https://currency-mcp.wesbos.com/mcp"))
                     {
                         ServerDescription = "MCP server docs at https://mcpservers.org/servers/wesbos/currency-converesion-mcp",
-                        ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval),
+                        ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.AlwaysRequireApproval),
                         AllowedTools = new McpToolFilter
                         {
                             // See available tools at https://github.com/wesbos/currency-conversion-mcp?tab=readme-ov-file#available-tools
@@ -82,32 +83,76 @@ public class OpenAIService(SecretClient secretClient, IOptions<OpenAISettings> o
             };
 
             OpenAIResponse response = await client.CreateResponseAsync(prompt, options);
-            string output = response.GetOutputText();
 
-            foreach (ResponseItem responseItem in response.OutputItems)
+            // Process approval requests in a loop until we get a final response
+            bool hasApprovalRequests = true;
+            while (hasApprovalRequests)
             {
-                if (responseItem is McpToolDefinitionListItem listItem)
-                {
-                    if (!_settings.McpToolsListed.ContainsKey(listItem.ServerLabel))
-                    {
-                        _settings.McpToolsListed[listItem.ServerLabel] = new List<McpToolInfo>();
-                    }
+                hasApprovalRequests = false;
+                List<ResponseItem> conversationItems = new();
 
-                    foreach (McpToolDefinition tool in listItem.ToolDefinitions)
+                foreach (ResponseItem responseItem in response.OutputItems)
+                {
+                    if (responseItem is McpToolCallApprovalRequestItem requestItem)
                     {
-                        _settings.McpToolsListed[listItem.ServerLabel].Add(new McpToolInfo
+                        hasApprovalRequests = true;
+
+                        bool approved = await _toastService.ShowApprovalToastAsync(
+                            "MCP Tool Approval Required",
+                            $"The AI wants to use the '{requestItem.ToolName}' tool from '{requestItem.ServerLabel}'. Do you approve?");
+
+                        // Include the original approval request item
+                        conversationItems.Add(responseItem);
+                        
+                        // Add the approval response item immediately after
+                        conversationItems.Add(
+                            ResponseItem.CreateMcpApprovalResponseItem(responseItem.Id, approved));
+                    }
+                    else if (responseItem is McpToolDefinitionListItem listItem)
+                    {
+                        if (!_settings.McpToolsListed.ContainsKey(listItem.ServerLabel))
                         {
-                            Name = tool.Name,
-                            Annotations = tool.Annotations.ToString(),
-                        });
+                            _settings.McpToolsListed[listItem.ServerLabel] = new List<McpToolInfo>();
+                        }
+
+                        foreach (McpToolDefinition tool in listItem.ToolDefinitions)
+                        {
+                            // Check if the tool is already in the list to avoid duplicates
+                            if (!_settings.McpToolsListed[listItem.ServerLabel].Any(t => t.Name == tool.Name))
+                            {
+                                _settings.McpToolsListed[listItem.ServerLabel].Add(new McpToolInfo
+                                {
+                                    Name = tool.Name,
+                                    Annotations = tool.Annotations.ToString(),
+                                });
+                            }
+                        }
+                        
+                        // Add the original item to continue the conversation
+                        conversationItems.Add(responseItem);
+                    }
+                    else if (responseItem is McpToolCallItem callItem)
+                    {
+                        _settings.McpToolsUsed.Add($"{callItem.ServerLabel}.{callItem.ToolName}");
+                        
+                        // Add the original item to continue the conversation
+                        conversationItems.Add(responseItem);
+                    }
+                    else
+                    {
+                        // Add all other items to continue the conversation
+                        conversationItems.Add(responseItem);
                     }
                 }
-                else if (responseItem is McpToolCallItem callItem)
+
+                // If there were approval requests, send the conversation items (including approvals) and get the next response
+                if (hasApprovalRequests)
                 {
-                    _settings.McpToolsUsed.Add($"{callItem.ServerLabel}.{callItem.ToolName}");
+                    response = await client.CreateResponseAsync(conversationItems, options);
                 }
             }
 
+            string output = response.GetOutputText();
             return string.IsNullOrEmpty(output) ? "Response was empty or null" : output;
         }
         catch (Exception ex)
