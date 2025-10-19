@@ -66,7 +66,7 @@ public class AzureOpenAIService(
 
         return await _cache.GetOrCreateAsync(AzureOpenAIKeyCacheKey, async entry =>
         {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7);
             KeyVaultSecret secret = await secretClient.GetSecretAsync(AzureOpenAIKeyCacheKey);
             return secret?.Value;
         });

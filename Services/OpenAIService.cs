@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Responses;
 using System.ClientModel;
+using System.ClientModel.Primitives;
 using TechoramaOpenAI.Models;
 
 namespace TechoramaOpenAI.Services;
@@ -28,7 +29,24 @@ public class OpenAIService(
 
             OpenAIClient openAIClient = new(new ApiKeyCredential(openAiApiKey));
             OpenAIResponseClient responseClient = openAIClient.GetOpenAIResponseClient(_settings.ModelName);
-            OpenAIResponse response = await responseClient.CreateResponseAsync(prompt);
+            OpenAIResponse response;
+
+            if (_settings.ModelName == "gpt-5")
+            {
+                // The REST API spec hasn't been updated to include gpt-5 properties.
+                // As a workaround, force additional members into the options properties bag.
+                ResponseCreationOptions? options = ((IJsonModel<ResponseCreationOptions>)new ResponseCreationOptions())
+                    .Create(BinaryData.FromObjectAsJson(new
+                    {
+                        reasoning = new { effort = "minimal" },
+                        text = new { verbosity = "low" }
+                    }), ModelReaderWriterOptions.Json);
+                response = await responseClient.CreateResponseAsync(prompt, options);
+            }
+            else
+            {
+                response = await responseClient.CreateResponseAsync(prompt);
+            }
 
             return response.GetOutputText();
         }
@@ -174,7 +192,7 @@ public class OpenAIService(
 
         return await _cache.GetOrCreateAsync(OpenAIKeyCacheKey, async entry =>
         {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7);
             KeyVaultSecret secret = await secretClient.GetSecretAsync(OpenAIKeyCacheKey);
             return secret?.Value;
         });
@@ -186,7 +204,7 @@ public class OpenAIService(
 
         return await _cache.GetOrCreateAsync(StripeKeyCacheKey, async entry =>
         {
-            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7);
             KeyVaultSecret secret = await secretClient.GetSecretAsync(StripeKeyCacheKey);
             return secret?.Value;
         });
