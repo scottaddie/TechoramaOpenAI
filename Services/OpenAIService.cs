@@ -22,11 +22,11 @@ public class OpenAIService(
 #pragma warning disable OPENAI001
     public async Task<string> UseResponsesAsync(string prompt)
     {
+        string? openAiApiKey = await GetOpenAIApiKey();
+        if (openAiApiKey == null) return "Error: OpenAI API key not configured";
+
         try
         {
-            string? openAiApiKey = await GetOpenAIApiKey();
-            if (openAiApiKey == null) return "Error: OpenAI API key not configured";
-
             OpenAIClient openAIClient = new(new ApiKeyCredential(openAiApiKey));
             OpenAIResponseClient responseClient = openAIClient.GetOpenAIResponseClient(_settings.ModelName);
             OpenAIResponse response;
@@ -59,12 +59,8 @@ public class OpenAIService(
 
     public async Task<string> UseResponsesWithMcpAsync(string prompt)
     {
-        // Fetch both keys in parallel
-        var (openAIApiKey, stripeApiKey) = await Task.WhenAll(
-            GetOpenAIApiKey(),
-            GetStripeApiKey()
-        ).ContinueWith(t => (t.Result[0], t.Result[1]));
-
+        string?[] results = await Task.WhenAll(GetOpenAIApiKey(), GetStripeApiKey());
+        var (openAIApiKey, stripeApiKey) = (results[0], results[1]);
         if (openAIApiKey == null) return "Error: OpenAI API key not configured";
         if (stripeApiKey == null) return "Error: Stripe API key not configured";
 
@@ -138,9 +134,10 @@ public class OpenAIService(
                     }
                     else if (responseItem is McpToolDefinitionListItem listItem)
                     {
-                        if (!_settings.McpToolsListed.ContainsKey(listItem.ServerLabel))
+                        if (!_settings.McpToolsListed.TryGetValue(listItem.ServerLabel, out var tools))
                         {
-                            _settings.McpToolsListed[listItem.ServerLabel] = new List<McpToolInfo>();
+                            tools = new List<McpToolInfo>();
+                            _settings.McpToolsListed[listItem.ServerLabel] = tools;
                         }
 
                         foreach (McpToolDefinition tool in listItem.ToolDefinitions)
@@ -197,7 +194,7 @@ public class OpenAIService(
         return await _cache.GetOrCreateAsync(OpenAIKeyCacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7);
-            KeyVaultSecret secret = await secretClient.GetSecretAsync(OpenAIKeyCacheKey);
+            KeyVaultSecret secret = await secretClient.GetSecretAsync(OpenAIKeyCacheKey).ConfigureAwait(false);
             return secret?.Value;
         });
     }
@@ -209,7 +206,7 @@ public class OpenAIService(
         return await _cache.GetOrCreateAsync(StripeKeyCacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7);
-            KeyVaultSecret secret = await secretClient.GetSecretAsync(StripeKeyCacheKey);
+            KeyVaultSecret secret = await secretClient.GetSecretAsync(StripeKeyCacheKey).ConfigureAwait(false);
             return secret?.Value;
         });
     }
