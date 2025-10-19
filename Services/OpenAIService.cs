@@ -34,8 +34,9 @@ public class OpenAIService(
             if (_settings.ModelName == "gpt-5")
             {
                 // The REST API spec hasn't been updated to include gpt-5 properties.
-                // As a workaround, force additional members into the options properties bag.
-                // See https://github.com/openai/openai-dotnet/issues/593.
+                // As a workaround, force additional members into the options properties bag to tune perf.
+                // For more context, see https://github.com/openai/openai-dotnet/issues/593 and
+                // https://platform.openai.com/docs/api-reference/responses/create.
                 ResponseCreationOptions? options = ((IJsonModel<ResponseCreationOptions>)new ResponseCreationOptions())
                     .Create(BinaryData.FromObjectAsJson(new
                     {
