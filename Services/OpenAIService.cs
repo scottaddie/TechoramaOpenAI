@@ -35,6 +35,7 @@ public class OpenAIService(
             {
                 // The REST API spec hasn't been updated to include gpt-5 properties.
                 // As a workaround, force additional members into the options properties bag.
+                // See https://github.com/openai/openai-dotnet/issues/593.
                 ResponseCreationOptions? options = ((IJsonModel<ResponseCreationOptions>)new ResponseCreationOptions())
                     .Create(BinaryData.FromObjectAsJson(new
                     {
@@ -58,15 +59,18 @@ public class OpenAIService(
 
     public async Task<string> UseResponsesWithMcpAsync(string prompt)
     {
-        string? openAiApiKey = await GetOpenAIApiKey();
-        if (openAiApiKey == null) return "Error: OpenAI API key not configured";
+        // Fetch both keys in parallel
+        var (openAIApiKey, stripeApiKey) = await Task.WhenAll(
+            GetOpenAIApiKey(),
+            GetStripeApiKey()
+        ).ContinueWith(t => (t.Result[0], t.Result[1]));
 
-        string? stripeApiKey = await GetStripeApiKey();
+        if (openAIApiKey == null) return "Error: OpenAI API key not configured";
         if (stripeApiKey == null) return "Error: Stripe API key not configured";
 
         try
         {
-            OpenAIResponseClient client = new(_settings.ModelName, openAiApiKey);
+            OpenAIResponseClient client = new(_settings.ModelName, openAIApiKey);
 
             ResponseCreationOptions options = new()
             {
