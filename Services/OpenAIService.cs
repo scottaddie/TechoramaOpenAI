@@ -117,7 +117,7 @@ public class OpenAIService(
             while (hasApprovalRequests)
             {
                 hasApprovalRequests = false;
-                List<ResponseItem> conversationItems = new();
+                List<ResponseItem> conversationItems = new(response.OutputItems.Count);
 
                 foreach (ResponseItem responseItem in response.OutputItems)
                 {
