@@ -6,5 +6,5 @@ public class OpenAISettings
 
     public Dictionary<string, List<McpToolInfo>> McpToolsListed { get; set; } = new();
 
-    public List<string> McpToolsUsed { get; set; } = new();
+    public HashSet<string> McpToolsUsed { get; set; } = new();
 }
