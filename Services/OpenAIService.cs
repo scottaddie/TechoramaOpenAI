@@ -19,7 +19,12 @@ public class OpenAIService(
     private readonly IMemoryCache _cache = cache;
     private readonly ToastService _toastService = toastService;
 
+    private const string OpenAIKeyCacheKey = "OPENAI-API-KEY";
+    private const string StripeKeyCacheKey = "STRIPE-OAUTH-ACCESS-TOKEN";
+
 #pragma warning disable OPENAI001
+    private ResponseCreationOptions? _gpt5Options;
+
     public async Task<string> UseResponsesAsync(string prompt)
     {
         string? openAiApiKey = await GetOpenAIApiKey();
@@ -33,16 +38,7 @@ public class OpenAIService(
 
             if (_settings.ModelName == "gpt-5")
             {
-                // The REST API spec hasn't been updated to include gpt-5 properties.
-                // As a workaround, force additional members into the options properties bag to tune perf.
-                // For more context, see https://github.com/openai/openai-dotnet/issues/593 and
-                // https://platform.openai.com/docs/api-reference/responses/create.
-                ResponseCreationOptions? options = ((IJsonModel<ResponseCreationOptions>)new ResponseCreationOptions())
-                    .Create(BinaryData.FromObjectAsJson(new
-                    {
-                        reasoning = new { effort = "minimal" },
-                        text = new { verbosity = "low" }
-                    }), ModelReaderWriterOptions.Json);
+                ResponseCreationOptions options = GetGpt5Options();
                 response = await responseClient.CreateResponseAsync(prompt, options);
             }
             else
@@ -185,48 +181,51 @@ public class OpenAIService(
     {
         if (!_settings.McpToolsListed.TryGetValue(listItem.ServerLabel, out var tools))
         {
-            tools = new List<McpToolInfo>();
+            tools = new HashSet<McpToolInfo>();
             _settings.McpToolsListed[listItem.ServerLabel] = tools;
         }
 
         foreach (McpToolDefinition tool in listItem.ToolDefinitions)
         {
-            if (!tools.Any(t => t.Name == tool.Name))
+            tools.Add(new McpToolInfo
             {
-                tools.Add(new McpToolInfo
-                {
-                    Name = tool.Name,
-                    Annotations = tool.Annotations.ToString(),
-                });
-            }
+                Name = tool.Name,
+                Annotations = tool.Annotations.ToString(),
+            });
         }
     }
 
     private void HandleToolCall(McpToolCallItem callItem) =>
         _settings.McpToolsUsed.Add($"{callItem.ServerLabel}.{callItem.ToolName}");
+
+    private ResponseCreationOptions GetGpt5Options()
+    {
+        // The REST API spec hasn't been updated to include gpt-5 properties.
+        // As a workaround, force additional members into the options properties bag to tune perf.
+        // For more context, see https://github.com/openai/openai-dotnet/issues/593 and
+        // https://platform.openai.com/docs/api-reference/responses/create.
+        return _gpt5Options ??= ((IJsonModel<ResponseCreationOptions>)new ResponseCreationOptions())
+            .Create(BinaryData.FromObjectAsJson(new
+            {
+                reasoning = new { effort = "minimal" },
+                text = new { verbosity = "low" }
+            }), ModelReaderWriterOptions.Json)!;
+    }
 #pragma warning restore OPENAI001
 
-    private async Task<string?> GetOpenAIApiKey()
-    {
-        const string OpenAIKeyCacheKey = "OPENAI-API-KEY";
-
-        return await _cache.GetOrCreateAsync(OpenAIKeyCacheKey, async entry =>
+    private async Task<string?> GetOpenAIApiKey() =>
+        await _cache.GetOrCreateAsync(OpenAIKeyCacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7);
             KeyVaultSecret secret = await secretClient.GetSecretAsync(OpenAIKeyCacheKey).ConfigureAwait(false);
             return secret?.Value;
         });
-    }
 
-    private async Task<string?> GetStripeApiKey()
-    {
-        const string StripeKeyCacheKey = "STRIPE-OAUTH-ACCESS-TOKEN";
-
-        return await _cache.GetOrCreateAsync(StripeKeyCacheKey, async entry =>
+    private async Task<string?> GetStripeApiKey() =>
+        await _cache.GetOrCreateAsync(StripeKeyCacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7);
             KeyVaultSecret secret = await secretClient.GetSecretAsync(StripeKeyCacheKey).ConfigureAwait(false);
             return secret?.Value;
         });
-    }
 }
