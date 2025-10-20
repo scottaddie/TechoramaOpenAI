@@ -38,7 +38,7 @@ public class AzureOpenAIService(
 
     private async Task<OpenAIClient> GetAzureOpenAIClient(bool useEntraId)
     {
-        OpenAIClient client = null!;
+        OpenAIClient client;
 
         OpenAIClientOptions clientOptions = new()
         {
