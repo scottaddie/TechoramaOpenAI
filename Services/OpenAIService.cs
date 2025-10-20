@@ -62,122 +62,18 @@ public class OpenAIService(
     {
         string?[] results = await Task.WhenAll(GetOpenAIApiKey(), GetStripeApiKey());
         var (openAIApiKey, stripeApiKey) = (results[0], results[1]);
+        
         if (openAIApiKey == null) return "Error: OpenAI API key not configured";
         if (stripeApiKey == null) return "Error: Stripe API key not configured";
 
         try
         {
             OpenAIResponseClient client = new(_settings.ModelName, openAIApiKey);
-
-            ResponseCreationOptions options = new()
-            {
-                Tools =
-                {
-                    new McpTool(serverLabel: "stripe", serverUri: new Uri("https://mcp.stripe.com"))
-                    {
-                        ServerDescription = "MCP server docs at https://docs.stripe.com/mcp",
-                        AuthorizationToken = stripeApiKey,
-                        ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval),
-                        AllowedTools = new McpToolFilter
-                        {
-                            // See available tools at https://docs.stripe.com/mcp#tools
-                            ToolNames =
-                            {
-                                "list_products",
-                                "list_prices",
-                                "create_payment_link",
-                            },
-                            // When true, only allow read-only tools (those annotated with `readOnlyHint`)
-                            //IsReadOnly = true,
-                        },
-                    },
-                    new McpTool(serverLabel: "currency-conversion", serverUri: new Uri("https://currency-mcp.wesbos.com/mcp"))
-                    {
-                        ServerDescription = "MCP server docs at https://mcpservers.org/servers/wesbos/currency-converesion-mcp",
-                        ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.AlwaysRequireApproval),
-                        AllowedTools = new McpToolFilter
-                        {
-                            // See available tools at https://github.com/wesbos/currency-conversion-mcp?tab=readme-ov-file#available-tools
-                            ToolNames =
-                            {
-                                "convert_currency",
-                            },
-                        },
-                    },
-                }
-            };
-
+            ResponseCreationOptions options = CreateMcpOptions(stripeApiKey);
+            
             OpenAIResponse response = await client.CreateResponseAsync(prompt, options);
-
-            // Process approval requests in a loop until we get a final response
-            bool hasApprovalRequests = true;
-            while (hasApprovalRequests)
-            {
-                hasApprovalRequests = false;
-                List<ResponseItem> conversationItems = new(response.OutputItems.Count);
-
-                foreach (ResponseItem responseItem in response.OutputItems)
-                {
-                    if (responseItem is McpToolCallApprovalRequestItem requestItem)
-                    {
-                        hasApprovalRequests = true;
-
-                        bool approved = await _toastService.ShowApprovalToastAsync(
-                            "MCP Tool Approval Required",
-                            $"The AI wants to use the '{requestItem.ToolName}' tool from '{requestItem.ServerLabel}'. Do you approve?");
-
-                        // Include the original approval request item
-                        conversationItems.Add(responseItem);
-                        
-                        // Add the approval response item immediately after
-                        conversationItems.Add(
-                            ResponseItem.CreateMcpApprovalResponseItem(responseItem.Id, approved));
-                    }
-                    else if (responseItem is McpToolDefinitionListItem listItem)
-                    {
-                        if (!_settings.McpToolsListed.TryGetValue(listItem.ServerLabel, out var tools))
-                        {
-                            tools = new List<McpToolInfo>();
-                            _settings.McpToolsListed[listItem.ServerLabel] = tools;
-                        }
-
-                        foreach (McpToolDefinition tool in listItem.ToolDefinitions)
-                        {
-                            // Check if the tool is already in the list to avoid duplicates
-                            if (!_settings.McpToolsListed[listItem.ServerLabel].Any(t => t.Name == tool.Name))
-                            {
-                                _settings.McpToolsListed[listItem.ServerLabel].Add(new McpToolInfo
-                                {
-                                    Name = tool.Name,
-                                    Annotations = tool.Annotations.ToString(),
-                                });
-                            }
-                        }
-                        
-                        // Add the original item to continue the conversation
-                        conversationItems.Add(responseItem);
-                    }
-                    else if (responseItem is McpToolCallItem callItem)
-                    {
-                        _settings.McpToolsUsed.Add($"{callItem.ServerLabel}.{callItem.ToolName}");
-                        
-                        // Add the original item to continue the conversation
-                        conversationItems.Add(responseItem);
-                    }
-                    else
-                    {
-                        // Add all other items to continue the conversation
-                        conversationItems.Add(responseItem);
-                    }
-                }
-
-                // If there were approval requests, send the conversation items (including approvals) and get the next response
-                if (hasApprovalRequests)
-                {
-                    response = await client.CreateResponseAsync(conversationItems, options);
-                }
-            }
-
+            response = await ProcessResponseWithApprovalsAsync(client, response, options);
+            
             string output = response.GetOutputText();
             return string.IsNullOrEmpty(output) ? "Response was empty or null" : output;
         }
@@ -186,6 +82,128 @@ public class OpenAIService(
             return $"Error: {ex.Message}";
         }
     }
+
+    private static ResponseCreationOptions CreateMcpOptions(string stripeApiKey)
+    {
+        return new ResponseCreationOptions
+        {
+            Tools =
+            {
+                new McpTool(serverLabel: "stripe", serverUri: new Uri("https://mcp.stripe.com"))
+                {
+                    ServerDescription = "MCP server docs at https://docs.stripe.com/mcp",
+                    AuthorizationToken = stripeApiKey,
+                    ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval),
+                    AllowedTools = new McpToolFilter
+                    {
+                        ToolNames =
+                        {
+                            "list_products",
+                            "list_prices",
+                            "create_payment_link",
+                        },
+                    },
+                },
+                new McpTool(serverLabel: "currency-conversion", serverUri: new Uri("https://currency-mcp.wesbos.com/mcp"))
+                {
+                    ServerDescription = "MCP server docs at https://mcpservers.org/servers/wesbos/currency-converesion-mcp",
+                    ToolCallApprovalPolicy = new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.AlwaysRequireApproval),
+                    AllowedTools = new McpToolFilter
+                    {
+                        ToolNames =
+                        {
+                            "convert_currency",
+                        },
+                    },
+                },
+            }
+        };
+    }
+
+    private async Task<OpenAIResponse> ProcessResponseWithApprovalsAsync(
+        OpenAIResponseClient client, 
+        OpenAIResponse response, 
+        ResponseCreationOptions options)
+    {
+        while (true)
+        {
+            var (conversationItems, hasApprovalRequests) = await ProcessResponseItemsAsync(response.OutputItems);
+            
+            if (!hasApprovalRequests)
+            {
+                return response;
+            }
+            
+            response = await client.CreateResponseAsync(conversationItems, options);
+        }
+    }
+
+    private async Task<(List<ResponseItem> Items, bool HasApprovalRequests)> ProcessResponseItemsAsync(
+        IList<ResponseItem> outputItems)
+    {
+        List<ResponseItem> conversationItems = new(outputItems.Count);
+        bool hasApprovalRequests = false;
+
+        foreach (ResponseItem responseItem in outputItems)
+        {
+            switch (responseItem)
+            {
+                case McpToolCallApprovalRequestItem requestItem:
+                    hasApprovalRequests = true;
+                    await HandleApprovalRequestAsync(requestItem, conversationItems);
+                    break;
+                case McpToolDefinitionListItem listItem:
+                    HandleToolDefinitionList(listItem);
+                    conversationItems.Add(responseItem);
+                    break;
+                case McpToolCallItem callItem:
+                    HandleToolCall(callItem);
+                    conversationItems.Add(responseItem);
+                    break;
+                default:
+                    conversationItems.Add(responseItem);
+                    break;
+            }
+        }
+
+        return (conversationItems, hasApprovalRequests);
+    }
+
+    private async Task HandleApprovalRequestAsync(
+        McpToolCallApprovalRequestItem requestItem,
+        List<ResponseItem> conversationItems)
+    {
+        bool approved = await _toastService.ShowApprovalToastAsync(
+            "MCP Tool Approval Required",
+            $"The AI wants to use the '{requestItem.ToolName}' tool from '{requestItem.ServerLabel}'. Do you approve?");
+
+        conversationItems.Add(requestItem);
+        conversationItems.Add(ResponseItem.CreateMcpApprovalResponseItem(requestItem.Id, approved));
+    }
+
+    private void HandleToolDefinitionList(McpToolDefinitionListItem listItem)
+    {
+        if (!_settings.McpToolsListed.TryGetValue(listItem.ServerLabel, out var tools))
+        {
+            tools = new List<McpToolInfo>();
+            _settings.McpToolsListed[listItem.ServerLabel] = tools;
+        }
+
+        foreach (McpToolDefinition tool in listItem.ToolDefinitions)
+        {
+            if (!tools.Any(t => t.Name == tool.Name))
+            {
+                tools.Add(new McpToolInfo
+                {
+                    Name = tool.Name,
+                    Annotations = tool.Annotations.ToString(),
+                });
+            }
+        }
+    }
+
+    private void HandleToolCall(McpToolCallItem callItem) =>
+        _settings.McpToolsUsed.Add($"{callItem.ServerLabel}.{callItem.ToolName}");
 #pragma warning restore OPENAI001
 
     private async Task<string?> GetOpenAIApiKey()
