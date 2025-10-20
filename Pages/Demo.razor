@@ -175,14 +175,14 @@
                     @if (selectedDemo == "mcp")
                     {
                         <hr />
-                        <button class="btn btn-sm btn-dark mb-2 w-100" @onclick="@(() => AddSampleMessage("List my Stripe products"))">
+                        <button class="btn btn-sm btn-dark mb-2 w-100" @onclick="@(() => AddSampleMessage("Generate a Markdown table containing my active products."))">
                             Stripe: List products
                         </button>
-                        <button class="btn btn-sm btn-dark mb-2 w-100" @onclick="@(() => AddSampleMessage("Show me my top 5 customers by revenue"))">
-                            Stripe: Top customers
+                        <button class="btn btn-sm btn-dark mb-2 w-100" @onclick="@(() => AddSampleMessage("Convert $20 USD to EUR."))">
+                            Currency: USD to EUR
                         </button>
-                        <button class="btn btn-sm btn-dark mb-2 w-100" @onclick="@(() => AddSampleMessage("Create a summary of my recent transactions"))">
-                            Stripe: Transaction summary
+                        <button class="btn btn-sm btn-dark mb-2 w-100" @onclick="@(() => AddSampleMessage("Convert the Techorama VIP ticket price to EUR. Then create a payment link."))">
+                            Stripe + Currency
                         </button>
                     }
                     <hr />
