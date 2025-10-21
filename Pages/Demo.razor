@@ -238,6 +238,9 @@
         {
             await messageInput.FocusAsync();
         }
+        
+        // Scroll to bottom after each render to handle new messages
+        await ScrollToBottom();
     }
 
     private async Task SendMessage()
@@ -299,7 +302,6 @@
         {
             isLoading = false;
             StateHasChanged();
-            await ScrollToBottom();
             await messageInput.FocusAsync();
         }
     }
