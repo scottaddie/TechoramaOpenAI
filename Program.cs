@@ -20,12 +20,11 @@ builder.Services.AddSingleton<OpenAIService>();
 builder.Services.Configure<AzureOpenAISettings>(builder.Configuration.GetSection("Azure:OpenAI"));
 builder.Services.AddSingleton<AzureOpenAIService>();
 
-builder.Services.AddAzureClients(configureClients: c =>
+builder.Services.AddAzureClients(configureClients =>
 {
     IConfigurationSection keyVaultConfig = builder.Configuration.GetSection("Azure:KeyVault");
-    c.AddSecretClient(keyVaultConfig);
-
-    c.UseCredential(serviceProvider => serviceProvider.GetRequiredService<TokenCredential>());
+    configureClients.AddSecretClient(keyVaultConfig)
+        .WithCredential(serviceProvider => serviceProvider.GetRequiredService<TokenCredential>());
 });
 
 var app = builder.Build();
