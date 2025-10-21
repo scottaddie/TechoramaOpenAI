@@ -1,5 +1,7 @@
 {
     "appService.preDeployTask": "publish-release",
     "appService.deploySubpath": "bin\\Release\\net10.0\\publish",
-    "appService.defaultWebAppToDeploy": "/subscriptions/c3ec7f92-494e-4b86-8ab5-78b223bfdef3/resourceGroups/rg-scaddie/providers/Microsoft.Web/sites/app-techorama-openai"
+    "appService.defaultWebAppToDeploy": "/subscriptions/c3ec7f92-494e-4b86-8ab5-78b223bfdef3/resourceGroups/rg-scaddie/providers/Microsoft.Web/sites/app-techorama-openai",
+    "window.zoomLevel": 1.25,
+    "extensions.ignoreRecommendations": true
 }
