@@ -38,8 +38,6 @@ public class AzureOpenAIService(
 
     private async Task<OpenAIClient> GetAzureOpenAIClient(bool useEntraId)
     {
-        OpenAIClient client;
-
         OpenAIClientOptions clientOptions = new()
         {
             Endpoint = new Uri($"{_settings.Endpoint}/openai/v1/"),
@@ -48,15 +46,11 @@ public class AzureOpenAIService(
         if (useEntraId)
         {
             BearerTokenPolicy tokenPolicy = new(credential, _settings.Scope);
-            client = new(tokenPolicy, clientOptions);
+            return new OpenAIClient(tokenPolicy, clientOptions);
         }
-        else
-        {
-            string? apiKey = await GetAzureOpenAIApiKey() ?? throw new InvalidOperationException("Azure OpenAI API key not configured");
-            client = new(new ApiKeyCredential(apiKey), clientOptions);
-        }
-
-        return client;
+            
+        string? apiKey = await GetAzureOpenAIApiKey() ?? throw new InvalidOperationException("Azure OpenAI API key not configured");
+        return new OpenAIClient(new ApiKeyCredential(apiKey), clientOptions);
     }
 #pragma warning restore OPENAI001
 
